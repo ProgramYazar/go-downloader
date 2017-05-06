@@ -5,8 +5,8 @@ COMPILE_FLAG="-s -w"
 all:
 	go get ./...
 
-compileForPlatforms:
 
+compileForPlatforms:
 	# build for all platforms
 	GOOS=windows GOARCH=386 go build -ldflags=$(COMPILE_FLAG) -o $(DIST_FOLDER)/go-download_win_i386.exe $(FILENAME)
 	GOOS=windows GOARCH=amd64 go build -ldflags=$(COMPILE_FLAG) -o $(DIST_FOLDER)/go-download_win_amd64.exe $(FILENAME)
