@@ -1,3 +1,8 @@
+
+<h1 style="text-align: center;"> GO DOWNLOADER </h1><br/>
+<center>
+<img src="https://github.com/ProgramYazar/go-downloader/blob/master/go_downloader.png?raw=true"/>
+</center>
 ### DESCRIPTION
 
 Multi thread downloader on go language. You can install this package like this:
