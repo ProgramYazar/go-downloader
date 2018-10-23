@@ -10,13 +10,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
-
-func checkErr(err error) {
-	if err != nil {
-		panic(err.Error())
-	}
-}
 
 var (
 	wg               sync.WaitGroup
@@ -30,47 +25,14 @@ type DownloadToken struct {
 	link     string
 }
 
-func (t *DownloadToken) show() {
-	fmt.Printf("Link: %s\nDownload Location: %s\nStarted...\n", t.link, t.filename)
-}
-
-func (t *DownloadToken) download() {
-	if fileExists(t.filename) {
-		fmt.Printf("File: %s already exists so i dont download it\n", t.filename)
-		return
-	}
-	file, err := os.Create(t.filename)
+func checkErr(err error) {
 	if err != nil {
-		showErrorAndExit(err.Error())
-	}
-	defer file.Close()
-
-	t.show()
-
-	resp, err := http.Get(t.link)
-	checkErr(err)
-	defer resp.Body.Close()
-	var buff = make([]byte, 1024)
-	for {
-		n, err := resp.Body.Read(buff)
-		if err != nil {
-			break
-		}
-		file.Write(buff[:n])
-	}
-
-}
-
-func downloadWorker() {
-	for dt := range downloadTokens {
-		dt.download()
-		wg.Done()
+		panic(err.Error())
 	}
 }
 
 func showErrorAndExit(format string, args ...interface{}) {
 	errorMessageLock.Lock()
-	defer errorMessageLock.Unlock()
 	fmt.Fprintln(os.Stderr, "\n--------------------- ERROR ---------------------")
 	fmt.Print("  ")
 	if len(args) > 0 {
@@ -79,7 +41,54 @@ func showErrorAndExit(format string, args ...interface{}) {
 		fmt.Fprintln(os.Stderr, format)
 	}
 	fmt.Fprintln(os.Stderr, "-------------------------------------------------")
+	errorMessageLock.Unlock()
 	os.Exit(2)
+}
+
+func (dt DownloadToken) outputFilename() string {
+	outputFilename := dt.filename
+	if !strings.HasSuffix(outputFilename, ".mp4") {
+		outputFilename += ".mp4"
+	}
+	return outputFilename
+}
+
+func (t *DownloadToken) show() {
+	fmt.Printf("Link: %s...\nDownload Location: %s\nStarted...\n", t.link[:20], t.outputFilename())
+}
+
+func (t *DownloadToken) download() {
+	start := time.Now()
+	outputFilename := t.outputFilename()
+
+	if fileExists(outputFilename) {
+		fmt.Printf("File: %s already exists! So i dont download it again...\n", outputFilename)
+		return
+	}
+	file, err := os.Create(outputFilename)
+	if err != nil {
+		showErrorAndExit(err.Error())
+	}
+	defer file.Close()
+
+	resp, err := http.Get(t.link)
+	checkErr(err)
+	defer resp.Body.Close()
+	// show info label
+	t.show()
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		showErrorAndExit(err.Error())
+	}
+	deltaSecond := time.Now().Sub(start).Seconds()
+	fmt.Printf("%s downloaded in %d seconds\n", t.outputFilename(), int(deltaSecond))
+}
+
+func downloadWorker() {
+	for dt := range downloadTokens {
+		dt.download()
+		wg.Done()
+	}
 }
 
 func fileExists(filename string) bool {
@@ -108,8 +117,13 @@ func main() {
 		workerCount   int
 	)
 
+	cpuCount := runtime.NumCPU()
+	if cpuCount > 2 {
+		cpuCount /= 2
+	}
+
 	flag.StringVar(&linksFile, "file", "", "links file location")
-	flag.IntVar(&parallelCount, "j", 1, "parallel jobs count")
+	flag.IntVar(&parallelCount, "j", cpuCount, "parallel jobs count")
 	flag.IntVar(&workerCount, "w", 1, "worker count")
 	flag.Parse()
 
